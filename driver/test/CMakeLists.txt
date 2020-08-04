@@ -85,6 +85,7 @@ function (declare_odbc_test_targets libname UNICODE)
     if (CH_ODBC_USE_ICU)
         target_link_libraries (${libname}-client-it
             PRIVATE ICU::uc
+            PRIVATE ICU::dt
         )
     endif ()
 
@@ -102,7 +103,7 @@ function (declare_odbc_test_targets libname UNICODE)
     endif ()
 
     set(test_dsn_counter 0)
-    foreach (test_dsn ${TEST_DSN_LIST})
+    foreach (test_dsn ${CH_ODBC_TEST_DSN_LIST})
         if (test_dsn)
             add_test (NAME ${libname}-client-it-dsn-${test_dsn_counter} COMMAND ${libname}-client-it "${test_dsn}")
             math (EXPR test_dsn_counter "${test_dsn_counter}+1")
@@ -142,7 +143,7 @@ function (declare_odbc_test_targets libname UNICODE)
         endif ()
 
         set(test_dsn_counter 0)
-        foreach (test_dsn ${TEST_DSN_LIST})
+        foreach (test_dsn ${CH_ODBC_TEST_DSN_LIST})
             if (test_dsn)
                 add_test (NAME ${libname}-${nanoname}-it-dsn-${test_dsn_counter} COMMAND ${libname}-${nanoname}-it "DSN=${test_dsn}")
 

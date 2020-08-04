@@ -313,6 +313,7 @@ before_install: |-
   if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
     sudo apt-get update -q
   elif [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_*.pkg -target /
     cd "$(brew --repo)" && git fetch && git reset --hard origin/master && cd -
     brew update
   elif [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
@@ -322,17 +323,33 @@ before_install: |-
 install: |-
   if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
     export PATH=$(echo "$PATH" | sed -e 's|:/usr/local/cmake-[^:]*/bin:|:|')
-    sudo apt-get install -y build-essential cmake perl libdbi-perl libdbd-odbc-perl python python-pip python-pyodbc python3 python3-pip python3-pyodbc python3-setuptools
-    pip3 install --user testflows
+
+    sudo apt-get install -y build-essential cmake perl libdbi-perl libdbd-odbc-perl python python-pip python-setuptools python3 python3-pip python3-setuptools
+
+    if [[ "$ODBC_PROVIDER" == "UnixODBC" ]]; then
+      pip install --user pyodbc
+      pip3 install --user pyodbc
+    fi
+
+    pip3 install --user conan testflows
   elif [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     # brew install cmake perl python
+
     PERL_MM_USE_DEFAULT=1 cpan -T DBD::ODBC
     if [[ "$ODBC_PROVIDER" == "UnixODBC" ]]; then
       pip2 install --user pyodbc
-      pip3 install --user pyodbc testflows
+      pip3 install --user pyodbc
     fi
+
+    PY3_USER_BASE_PATH="$(python3 -m site --user-base)"
+    export PATH="$PY3_USER_BASE_PATH/bin:$PATH"
+
+    pip3 install --user conan testflows
   elif [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
     export OLD_VSWHERE=yes
+
+    choco install python2
+    choco install python3
 
     # TODO: use choco instead of manual download/unpack/env setting, once 3.14+ version
     # is available, since starting from 3.14 WiX Toolset doesn't depend on .NET 3.5,
@@ -341,6 +358,13 @@ install: |-
     wget https://wixtoolset.org/downloads/v3.14.0.712/wix314-binaries.zip
     powershell -Command Expand-Archive wix314-binaries.zip -DestinationPath wix314-binaries
     export WIX="$(cd wix314-binaries && pwd -W)"
+
+    PY3_USER_SITE_PATH="$(py -3 -m site --user-site)"
+    PY3_USER_SITE_PATH="${PY3_USER_SITE_PATH//\\//}"
+    PY3_USER_SITE_PATH="${PY3_USER_SITE_PATH/C\://C}"
+    export PATH="$PY3_USER_SITE_PATH/../Scripts:$PATH"
+
+    py -3 -m pip install --user conan testflows
   fi
 
 .clickhouse_start: &clickhouse_start |-
@@ -441,12 +465,12 @@ install: |-
   fi
 
 .configure: &configure |-
-  CMAKE_CONFIGURE_ARGS="-DTEST_DSN_LIST=\"ClickHouse DSN (ANSI);ClickHouse DSN (Unicode);ClickHouse DSN (ANSI, RBWNAT)\" $CMAKE_CONFIGURE_EXTRA_ARGS"
+  CMAKE_CONFIGURE_ARGS="-DCH_ODBC_TEST_DSN_LIST=\"ClickHouse DSN (ANSI);ClickHouse DSN (Unicode);ClickHouse DSN (ANSI, RBWNAT)\" $CMAKE_CONFIGURE_EXTRA_ARGS"
   if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     CMAKE_CONFIGURE_ARGS="-DICU_ROOT=$(brew --prefix)/opt/icu4c $CMAKE_CONFIGURE_ARGS"
   fi
   if [[ "$EXTERNAL_THIRD_PARTY" == "yes" ]]; then
-    CMAKE_CONFIGURE_ARGS="-DCH_ODBC_PREFER_BUNDLED_THIRD_PARTIES=OFF $CMAKE_CONFIGURE_ARGS"
+    CMAKE_CONFIGURE_ARGS="-DCH_ODBC_USE_SYSTEM_THIRD_PARTIES=ON -DCH_ODBC_USE_SYSTEM_FOLLY=OFF -DCH_ODBC_USE_SYSTEM_GOOGLETEST=OFF -DCH_ODBC_USE_SYSTEM_NANODBC=OFF $CMAKE_CONFIGURE_ARGS"
     if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
       CMAKE_CONFIGURE_ARGS="-DOPENSSL_ROOT_DIR=$(brew --prefix)/opt/openssl $CMAKE_CONFIGURE_ARGS"
     fi
